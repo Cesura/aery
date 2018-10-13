@@ -9,8 +9,10 @@ import std.stdio;
 import std.string;
 import std.array;
 import std.file;
+import std.algorithm;
 import std.socket;
 import std.concurrency;
+import core.stdc.stdlib;
 
 __gshared Router router;
 
@@ -54,28 +56,39 @@ static void handleConnection() {
 
 	ubyte[4096] buffer;
     auto received = client.receive(buffer);
-	
-	// Split first line of HTTP request into its elements
-	string request = "";
-	for (int i = 0; i<received; i++) {
-		if (buffer[i] == '\n' || buffer[i] == '\r')
-			break;
+	string[string] options;
 
-		request ~= buffer[i];
-	}
+	string request = cast(string)buffer;
+	string[] headers = request.split("\r\n");
 
 	if (settings.debug_mode)
-		writeln(request);
+		writeln(headers[0]);
 
 	// fields[0] -> request type
 	// fields[1] -> requested path
-	// fields[3] -> HTTP version
-	string[] fields = request.split(" ");
+	// fields[2] -> HTTP version
+	string[] fields = headers[0].split(" ");
 	
 	// If < 3 fields, it's a malformed HTTP request
 	if (fields.length >= 3) {
-		HTTPRequest req = new HTTPRequest();
+		HTTPRequest req = new HTTPRequest(fields[1]);
 		HTTPResponse res = new HTTPResponse(client);
+
+		// Loop through options and see if anything needs to be set in the above objects
+		for (int i=1; i<headers.length-1; i++) {
+			auto pair = findSplit(headers[i], ":");
+			options[pair[0]] = pair[2];
+
+			// Handle sent cookies
+			if (pair[0] == "Cookie") {
+				auto cookie = findSplit(headers[i], "=");
+				
+				if (cookie.length == 3) {
+					cookie[0] = findSplitAfter(cookie[0], " ")[1];
+					req.set_cookie(new Cookie(cookie[0], cookie[2]));
+				}
+			}
+		}
 
 		string request_type = fields[0];
 		string request_path = fields[1];
@@ -146,7 +159,93 @@ class HTTPRequest {
 
 private:
 	Socket sock;
+	string uri;
+	Cookie[string] cookies;
+	Session req_session;
 
+public:
+	this(string request_uri) {
+		this.uri = request_uri;
+		this.req_session = null;
+	}
+
+	void set_cookie(Cookie cookie) {
+		this.cookies[cookie.key()] = cookie;
+
+		if (cookie.key() == "aery_session") {
+			this.req_session = new Session(cookie.value());
+		}
+	}
+
+	string cookie(string key) {
+		if (key in cookies)
+			return this.cookies[key].value();
+		return null;
+	}
+
+	Session session() {
+		if (this.req_session is null)
+			return new Session(null);
+
+		return this.req_session;
+	}
+
+	string request_uri() {
+		return this.uri;
+	}
+
+}
+
+
+class Session {
+
+private:
+	string session_id;
+	string[string] session_vars;
+
+public:
+	this(string session_id) {
+		this.session_id = session_id;
+	}
+
+	string id() {
+		return this.session_id;
+	}
+
+	void add(string key, string value) {
+		this.session_vars[key] = value;
+	}
+
+	string get(string key) {
+		if (key in this.session_vars)
+			return this.session_vars[key];
+		return null;
+	}
+}
+
+class Cookie {
+
+private:
+	string cookie_key;
+	string cookie_value;
+
+public:
+	this(string key, string value) {
+		this.cookie_key = key;
+		this.cookie_value = value;
+	}
+
+	string key() {
+		return this.cookie_key;
+	}
+	
+	string value() {
+		return this.cookie_value;
+	}
+
+	string http_string() {
+		return this.cookie_key ~ ": " ~ this.cookie_value;
+	}
 }
 
 // An object representing an HTTP response
