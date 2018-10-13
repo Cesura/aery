@@ -1,0 +1,21 @@
+<html>
+    <head>
+        <title>{{ title }}</title>
+        {% css assets/css/style.css %}
+    </head>
+    
+    <body>
+        <h1>{{ header }}</h1>
+        {% if logged_in %}
+            <img src="assets/img/dog.jpg" /><br />
+            <h2>Secret dog picture shhhh</h2>
+        {% else %}
+            <h2>Access denied...</h2>
+        {% endif %}
+
+        {% foreach users as user %}
+            <h1>{{ user.name }}</h1>
+            <h2>{{ user.id }}</h2>
+       {% endforeach %}
+    </body>
+</html>

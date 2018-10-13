@@ -1,0 +1,9 @@
+{
+	"name": "aery",
+	"authors": [
+		"Brad Fanella"
+	],
+	"description": "A fast, lightweight web framework written in D",
+	"copyright": "Copyright © 2018, Brad Fanella",
+	"license": "BSD"
+}
