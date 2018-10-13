@@ -187,4 +187,9 @@ public:
 		sock.send(response);
 	}
 
+	void redirect(string url) {
+		string header = "HTTP/1.1 302 Found\r\nLocation: " ~ url ~ "\r\n\r\n";
+		sock.send(header);
+	}
+
 }

@@ -1,6 +1,7 @@
 module aery.templating;
 
 import aery.settings;
+import aery.database;
 
 import std.stdio;
 import std.file;
@@ -12,6 +13,8 @@ import std.algorithm;
 import std.array;
 import std.traits;
 import core.stdc.stdlib;
+
+alias ParamElement = Variant;
 
 // Render a static template given a CachedTemplate object
 string renderStatic(CachedTemplate tmp) {
@@ -230,7 +233,7 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                             string result = "";
 
                             bool skipnext;
-                            foreach (Variant x; params[elements[1]]) {
+                            foreach (ParamElement x; params[elements[1]]) {
                                 skipnext = false;
                                 result = result ~ stmt_body;
 
@@ -244,6 +247,9 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                                         result = replace(result, n.hit, to!string(x[key]));
                                         skipnext = true;
                                     }
+                                    else
+                                        throw new Exception("Parse error");
+
                                 }
 
                                 // Do a regular replacement (assuming it's a single value)
@@ -252,9 +258,6 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                             }
 
                             
-
-                            
-
                             // Do the replacement, and strip the logical operators
                             contents = replaceFirst(replaceFirst(replaceFirst(contents, m.hit, ""), "{% endforeach %}", ""), stmt_body, result);
                         }
@@ -278,13 +281,14 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
 class TemplateParams {
 
 private:
-    Variant[string] params;
+    ParamElement[string] params;
 
 public:   
     this() { }
     
     // Catch-all (requires casting)
-    void add(string identifier, Variant value) { this.params[identifier] = value; }
+    void add(string identifier, ParamElement value) { this.params[identifier] = value; }
+    void add(string identifier, DBResults value) { this.params[identifier] = value; }
 
     void add(string identifier, string value) { this.params[identifier] = value; }
     void add(string identifier, string[] value) { this.params[identifier] = value; }
