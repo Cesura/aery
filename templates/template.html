@@ -10,13 +10,11 @@
             <img src="assets/img/dog.jpg" /><br />
             <h2>Secret dog picture shhhh</h2>
         {% else %}
-            <h2>Access denied...</h2>
+            {% foreach users as user %}
+                <h1>{{ user.id }}: {{ user.name }}</h1>
+                <h2>{{ user.email }}</h2>
+            {% endforeach %}
         {% endif %}
-
-        {% foreach users as user %}
-            <h1>{{ user.id }}: {{ user.name }}</h1>
-            <h2>{{ user.email }}</h2>
-            
-       {% endforeach %}
+        
     </body>
 </html>

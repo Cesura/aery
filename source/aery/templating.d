@@ -185,22 +185,25 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                     if (indexOf(contents, "{% else %}") < indexOf(contents, "{% endif %}"))
                         is_else = true;
                     
+                    
+                    auto before_if = findSplitBefore(contents, m.hit);
 
                     // Result was not true
                     if (!result) {
-                        auto before_if = findSplitBefore(contents, m.hit);
 
                         // There's an else statement; print its contents
                         if (is_else) {
                             auto after_else = findSplitAfter(contents, "{% else %}");
                             auto after_endif = findSplitAfter(contents, "{% endif %}");
                             contents = replaceFirst(before_if[0] ~ after_else[1] ~ after_endif[1], "{% endif %}", "");
+                        
                         }
 
                         // End normally
                         else {
                             auto after_endif = findSplitAfter(contents, "{% endif %}");
                             contents = before_if[0] ~ after_endif[1];
+                            
                         }
                         
                     }
@@ -210,7 +213,7 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                         if (is_else) {
                             auto before_else = findSplitBefore(contents, "{% else %}");
                             auto after_endif = findSplitAfter(contents, "{% endif %}");
-                            contents = replaceFirst(before_else[0], m.hit, "") ~ after_endif[1];
+                            contents = replaceFirst(replaceFirst(before_else[0], m.hit, "") ~ after_endif[1], "{% endif %}", "");
                         }
                         else
                             contents = replaceFirst(replaceFirst(contents, m.hit, ""), "{% endif %}", "");
@@ -228,7 +231,10 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
 
                             auto after_foreach = findSplitAfter(contents, "{% foreach " ~ elements[1] ~ " as " ~ elements[3] ~ " %}");
                             auto before_endforeach = findSplitBefore(after_foreach[1], "{% endforeach %}");
-                            
+
+                            if (after_foreach[0] == "")
+                                break;
+
                             string stmt_body = before_endforeach[0];
                             string result = "";
 
@@ -256,7 +262,6 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                                 if (!skipnext)
                                     result = replace(result, "{{ " ~ elements[3] ~ " }}", to!string(x));
                             }
-
                             
                             // Do the replacement, and strip the logical operators
                             contents = replaceFirst(replaceFirst(replaceFirst(contents, m.hit, ""), "{% endforeach %}", ""), stmt_body, result);
