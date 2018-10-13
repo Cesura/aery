@@ -27,21 +27,21 @@ void listen(string address, ushort port, Router rt) {
 // Backend for listen() functions
 void listen_backend(string address, ushort port, Router rt) {
     
-    Socket socket = new TcpSocket();
-    socket.setOption(SocketOptionLevel.SOCKET, SocketOption.REUSEADDR, true);
-    socket.bind(new InternetAddress(port));
-    socket.listen(1);
+	Socket socket = new TcpSocket();
+	socket.setOption(SocketOptionLevel.SOCKET, SocketOption.REUSEADDR, true);
+	socket.bind(new InternetAddress(port));
+	socket.listen(1);
 
 	if (settings.debug_mode)
 		writefln("Listening on %s:%d...", address, port);
 
 	router = rt;
 
-    for (;;) {
-        Socket client = socket.accept();
+	for (;;) {
+		Socket client = socket.accept();
 		auto child = spawn(&handleConnection);
 		send(child, cast(shared)client);
-    }
+	}
 }
 
 static void handleConnection() {
@@ -49,8 +49,8 @@ static void handleConnection() {
 	Socket client;
 
 	receive((shared Socket s){
-        client = cast(Socket)s;
-    });
+		client = cast(Socket)s;
+	});
 
 	ubyte[4096] buffer;
     auto received = client.receive(buffer);
@@ -127,7 +127,10 @@ public:
 	this(string path) {
 		try {
 			fp = File(path, "r");
-			buf = fp.rawRead(new ubyte[fp.size]);
+
+			if (fp.size > 0)
+				buf = fp.rawRead(new ubyte[fp.size]);
+				
 			fp.close();
 		} catch (FileException e) {}
 		
@@ -167,6 +170,7 @@ public:
 
 	// Send a given file and specify the MIME type
 	void send_mime(string mime, ubyte[] buf) {
+		
 		string header = "HTTP/1.1 200 OK\r\nContent-Length: " ~ to!string(buf.length)
 			~ "\r\nContent-Type: " ~ mime ~ "\r\nConnection: keep-alive\r\n" 
 			~ "Cache-Control: max-age=3600\r\n\r\n";
