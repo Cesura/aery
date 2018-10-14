@@ -210,7 +210,7 @@ private:
 public:
 	this(string request_uri) {
 		this.uri = request_uri;
-		this.req_session = null;
+		this.req_session = new Session();
 	}
 
 
@@ -223,9 +223,6 @@ public:
 
 	// Get a pointer to the session given in this request
 	Session session() {
-		if (this.req_session is null)
-			return new Session(null);
-
 		return this.req_session;
 	}
 
