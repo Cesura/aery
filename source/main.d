@@ -1,6 +1,5 @@
 import std.stdio;
 import std.conv;
-import std.concurrency;
 
 import aery.all;
 
@@ -11,10 +10,10 @@ void main() {
 
     Router router = new Router();
     router.add("/", &homePage);
+    router.add(POST, "/login", &login);
+    router.add("/logout", &logout);
 
-    router.add("/google", &toGoogle);
-
-    settings.debug_mode = false;
+    settings.debug_mode = true;
 
     pool = new TemplatePool();
     pool.add(new CachedTemplate("templates/template.html"));
@@ -28,17 +27,42 @@ void main() {
 void homePage(HTTPRequest req, HTTPResponse res) {
 
     TemplateParams params = new TemplateParams();
-    params.add("header", req.session().id());
-    params.add("title", "Page Title");
+    
+    if (req.logged_in()) {
+        DBResults users = db.fetch("SELECT * FROM users;");
 
-    DBResults users = db.fetch("SELECT * FROM users;");
-
-    params.add("users", users);
+        params.add("logged_in", true);
+        params.add("users", users);
+        params.add("header", req.session.get("username"));
+        params.add("title", "User zone");
+    }
+    else {
+        params.add("logged_in", false);
+        params.add("header", "Please log in");
+        params.add("title", "Login zone");
+    }
+    
 
     res.send(renderTemplate(pool.get("templates/template.html"), params.send()));
 }
 
+void login(HTTPRequest req, HTTPResponse res) {
+    
+    string username = req.form("username");
+    string password = req.form("password");
 
-void toGoogle(HTTPRequest req, HTTPResponse res) {
-    res.redirect("https://google.com");
+    Authenticator a = new Authenticator(db);
+
+    if (a.verify(username, password, res)) {
+        res.redirect("/");
+    }
+    else {
+        res.redirect("/?error");
+    }
+}
+
+
+void logout(HTTPRequest req, HTTPResponse res) {
+    req.session.destroy();
+    res.redirect("/");
 }

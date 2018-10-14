@@ -6,15 +6,23 @@
     
     <body>
         <h1>{{ header }}</h1>
-        {% if logged_in %}
+        {% if !logged_in %}
+            <form action="/login" method="POST">
+                Username: <input type="text" name="username" /><br />
+                Password: <input type="password" name="password" /><br />
+                <input type="submit" value="Submit" />
+            </form>
+        {% else %}
             <img src="assets/img/dog.jpg" /><br />
             <h2>Secret dog picture shhhh</h2>
-        {% else %}
             {% foreach users as user %}
-                <h1>{{ user.id }}: {{ user.name }}</h1>
+                <h1>{{ user.id }}: {{ user.username }}</h1>
                 <h2>{{ user.email }}</h2>
             {% endforeach %}
+
+            <a href="./logout">Logout</a>
         {% endif %}
+        
         
     </body>
 </html>

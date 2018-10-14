@@ -3,6 +3,7 @@ module aery.httpserver;
 import aery.routing;
 import aery.mime;
 import aery.settings;
+import aery.session;
 
 import std.conv;
 import std.stdio;
@@ -12,9 +13,12 @@ import std.file;
 import std.algorithm;
 import std.socket;
 import std.concurrency;
+import std.uri;
 import core.stdc.stdlib;
 
 __gshared Router router;
+
+alias FormData = string[string];
 
 // No address given, assume localhost
 void listen(ushort port, Router rt) {
@@ -33,6 +37,8 @@ void listen_backend(string address, ushort port, Router rt) {
 	socket.setOption(SocketOptionLevel.SOCKET, SocketOption.REUSEADDR, true);
 	socket.bind(new InternetAddress(port));
 	socket.listen(1);
+
+	settings.domain = address;
 
 	if (settings.debug_mode)
 		writefln("Listening on %s:%d...", address, port);
@@ -56,10 +62,11 @@ static void handleConnection() {
 
 	ubyte[4096] buffer;
     auto received = client.receive(buffer);
-	string[string] options;
-
+	
+	// Split up HTTP headers into an array
 	string request = cast(string)buffer;
 	string[] headers = request.split("\r\n");
+	string msg_body = findSplitBefore(findSplitAfter(request, "\r\n\r\n")[1], "\0")[0];
 
 	if (settings.debug_mode)
 		writeln(headers[0]);
@@ -74,7 +81,9 @@ static void handleConnection() {
 		HTTPRequest req = new HTTPRequest(fields[1]);
 		HTTPResponse res = new HTTPResponse(client);
 
-		// Loop through options and see if anything needs to be set in the above objects
+		// Loop through options and see if anything needs to be set
+		string[string] options;
+
 		for (int i=1; i<headers.length-1; i++) {
 			auto pair = findSplit(headers[i], ":");
 			options[pair[0]] = pair[2];
@@ -122,11 +131,45 @@ static void handleConnection() {
 				callback(req, res);
 			}
 		}
+
+		// Handle POST requests
+		else if (request_type == "POST") {
+
+			// Right now we're assuming it's raw form data (will change)
+			FormData form_data = parse_form(msg_body);
+			if (!(form_data is null))
+				req.set_form_data(form_data);
+
+			void function(HTTPRequest req, HTTPResponse res) callback
+				= router.get_callback("POST", request_path);
+			
+
+			if (callback == null) {
+				res.not_found();
+			}
+
+			// Otherwise, simply do the callback
+			else {
+				callback(req, res);
+			}
+
+		}
 	}
 
 	client.close();
 }
 
+// Helper function to parse form data from an HTTP body
+static FormData parse_form(string raw) {
+	FormData return_array = null;
+
+	foreach (string s; raw.split("&")) {
+		auto split = s.findSplit("=");
+		return_array[split[0].replace("+", " ").decodeComponent] = split[2].replace("+", " ").decodeComponent;
+	}
+
+	return return_array;
+}
 
 // An object for containing a static asset
 class StaticAsset {
@@ -161,6 +204,7 @@ private:
 	Socket sock;
 	string uri;
 	Cookie[string] cookies;
+	FormData form_data;
 	Session req_session;
 
 public:
@@ -169,20 +213,15 @@ public:
 		this.req_session = null;
 	}
 
-	void set_cookie(Cookie cookie) {
-		this.cookies[cookie.key()] = cookie;
 
-		if (cookie.key() == "aery_session") {
-			this.req_session = new Session(cookie.value());
-		}
-	}
-
+	// Return a cookie based on the given key, or null
 	string cookie(string key) {
 		if (key in cookies)
 			return this.cookies[key].value();
 		return null;
 	}
 
+	// Get a pointer to the session given in this request
 	Session session() {
 		if (this.req_session is null)
 			return new Session(null);
@@ -190,61 +229,37 @@ public:
 		return this.req_session;
 	}
 
+	// Extract a form data element based on key
+	string form(string key) {
+		if (key in this.form_data)
+			return this.form_data[key];
+		return null;
+	}
+
+	// Return the request URI that was taken from the HTTP request
 	string request_uri() {
 		return this.uri;
 	}
 
-}
-
-
-class Session {
-
-private:
-	string session_id;
-	string[string] session_vars;
-
-public:
-	this(string session_id) {
-		this.session_id = session_id;
+	// Return true/false based on whether the given user has a valid session ID
+	bool logged_in() {
+		if (!this.req_session.valid())
+			return false;	
+		return true;
 	}
 
-	string id() {
-		return this.session_id;
+	// Set form data for this request (used by server)
+	void set_form_data(FormData form_data) {
+		this.form_data = form_data;
 	}
 
-	void add(string key, string value) {
-		this.session_vars[key] = value;
-	}
+	// Set a cookie for this request (used by server)
+	void set_cookie(Cookie cookie) {
+		this.cookies[cookie.key()] = cookie;
 
-	string get(string key) {
-		if (key in this.session_vars)
-			return this.session_vars[key];
-		return null;
-	}
-}
-
-class Cookie {
-
-private:
-	string cookie_key;
-	string cookie_value;
-
-public:
-	this(string key, string value) {
-		this.cookie_key = key;
-		this.cookie_value = value;
-	}
-
-	string key() {
-		return this.cookie_key;
-	}
-	
-	string value() {
-		return this.cookie_value;
-	}
-
-	string http_string() {
-		return this.cookie_key ~ ": " ~ this.cookie_value;
+		if (cookie.key() == "aery_session") {
+			this.req_session = new Session(cookie.value());
+		}
 	}
 }
 
@@ -253,6 +268,8 @@ class HTTPResponse {
 
 private:
 	Socket sock;
+	Session res_session;
+	Cookie[string] cookies;
 
 public:
 	this(Socket sock) {
@@ -261,7 +278,9 @@ public:
 
 	// Send a string of characters, rendered as text/html
 	void send(string input) {
-		enum header = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n";
+		string header = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: keep-alive\r\n"
+			~ this.append_cookies() ~ "\r\n";
+
 		string response = header ~ input;
 
 		sock.send(response);
@@ -286,9 +305,69 @@ public:
 		sock.send(response);
 	}
 
+	// Append cookies to the HTTP header
+	string append_cookies() {
+		string return_string = "";
+		foreach (Cookie cookie; this.cookies) {
+			return_string ~= cookie.http_string();
+		}
+		return return_string;
+	}
+
+	// Redirect to given URL
 	void redirect(string url) {
-		string header = "HTTP/1.1 302 Found\r\nLocation: " ~ url ~ "\r\n\r\n";
+		string header = "HTTP/1.1 302 Found\r\nLocation: " ~ url ~ "\r\n" ~ this.append_cookies() ~ "\r\n";
 		sock.send(header);
 	}
 
+	// Get a pointer to this session
+	Session session() {
+		if (this.res_session is null)
+			this.res_session = new Session();
+
+		return this.res_session;
+	}
+
+	// Set a cookie for this response
+	void set_cookie(Cookie cookie) {
+		this.cookies[cookie.key()] = cookie;
+	}
+
+	// Return a cookie based on the given key, or null
+	string cookie(string key) {
+		if (key in cookies)
+			return this.cookies[key].value();
+		return null;
+	}
+
+}
+
+// An object representing an HTTP cookie
+class Cookie {
+
+private:
+	string cookie_key;
+	string cookie_value;
+
+public:
+	this(string key, string value) {
+		this.cookie_key = key;
+		this.cookie_value = value;
+	}
+
+	// Return the key of this cookie
+	string key() {
+		return this.cookie_key;
+	}
+	
+	// Return the value of this cookie
+	string value() {
+		return this.cookie_value;
+	}
+
+	// Return a formatted string to be put in an HTTP response header
+	string http_string() {
+		return "Set-Cookie: " ~ this.cookie_key ~ "=" ~ this.cookie_value 
+			~ "; Max-Age=3600; Domain: " ~ settings.domain ~ "\r\n";
+	}
 }

@@ -50,9 +50,10 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
         string value;
         foreach (m; matchAll(contents, regex(r"\{\{.+?\}\}","m"))) {
             value = strip(strip(strip(m.hit, "{"), "}"));
-            
+
             if (value in params)
                 contents = replace(contents, m.hit, to!string(params[value]));
+
         }
 
         // Extract all logic operations
@@ -194,9 +195,7 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                         // There's an else statement; print its contents
                         if (is_else) {
                             auto after_else = findSplitAfter(contents, "{% else %}");
-                            auto after_endif = findSplitAfter(contents, "{% endif %}");
-                            contents = replaceFirst(before_if[0] ~ after_else[1] ~ after_endif[1], "{% endif %}", "");
-                        
+                            contents = replaceFirst(before_if[0] ~ after_else[1], "{% endif %}", "");
                         }
 
                         // End normally
@@ -238,6 +237,7 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                             string stmt_body = before_endforeach[0];
                             string result = "";
 
+
                             bool skipnext;
                             foreach (ParamElement x; params[elements[1]]) {
                                 skipnext = false;
@@ -262,7 +262,7 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                                 if (!skipnext)
                                     result = replace(result, "{{ " ~ elements[3] ~ " }}", to!string(x));
                             }
-                            
+
                             // Do the replacement, and strip the logical operators
                             contents = replaceFirst(replaceFirst(replaceFirst(contents, m.hit, ""), "{% endforeach %}", ""), stmt_body, result);
                         }

@@ -6,3 +6,5 @@ public import aery.mime;
 public import aery.templating;
 public import aery.settings;
 public import aery.database;
+public import aery.authentication;
+public import aery.session;

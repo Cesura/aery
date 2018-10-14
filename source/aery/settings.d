@@ -4,6 +4,7 @@ __gshared Settings settings;
 
 struct Settings {
     bool debug_mode = false;
+    string domain = "127.0.0.1";
 
     // Default asset paths
     string css_path = "assets/css";
@@ -13,4 +14,5 @@ struct Settings {
     string auth_table = "users";
     string auth_user_field = "username";
     string auth_pass_field = "password";
+    string auth_session_dir = "/tmp/.aery_session";
 };
