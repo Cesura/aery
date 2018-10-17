@@ -85,17 +85,21 @@ static void handleConnection() {
 		string[string] options;
 
 		for (int i=1; i<headers.length-1; i++) {
-			auto pair = findSplit(headers[i], ":");
+			auto pair = headers[i].findSplit(":");
 			options[pair[0]] = pair[2];
 
 			// Handle sent cookies
 			if (pair[0] == "Cookie") {
-				auto cookie = findSplit(headers[i], "=");
-				
-				if (cookie.length == 3) {
-					cookie[0] = findSplitAfter(cookie[0], " ")[1];
-					req.set_cookie(new Cookie(cookie[0], cookie[2]));
+				auto cookies = pair[2].split(";");
+
+				foreach (string cookie; cookies) {
+					auto cookie_elements = cookie.strip().findSplit("=");
+					if (cookie_elements.length == 3) {
+						req.set_cookie(new Cookie(cookie_elements[0], cookie_elements[2]));
+					}
 				}
+				
+				
 			}
 		}
 

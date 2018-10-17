@@ -1,7 +1,13 @@
 import std.stdio;
 import std.conv;
+import std.traits;
+import std.variant;
+
+import std.typecons;
 
 import aery.all;
+
+import models;
 
 __gshared TemplatePool pool;
 __gshared DBConnector db;
@@ -19,20 +25,20 @@ void main() {
     pool.add(new CachedTemplate("templates/template.html"));
 
     db = new DBConnector("./database.db");
-  
-    listen(8080, router);
+
+    listen(8081, router);
     db.close();
 }
 
 void homePage(HTTPRequest req, HTTPResponse res) {
 
     TemplateParams params = new TemplateParams();
-    
+
     if (req.logged_in()) {
-        DBResults users = db.fetch("SELECT * FROM users;");
+        auto users = db.fetch!(User)("SELECT * FROM users;");
+        params.addModels("users", users);
 
         params.add("logged_in", true);
-        params.add("users", users);
         params.add("header", req.session.get("username"));
         params.add("title", "User zone");
     }

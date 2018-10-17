@@ -1,5 +1,7 @@
 module aery.authentication;
 
+import models;
+
 import aery.database;
 import aery.settings;
 import aery.httpserver;
@@ -7,6 +9,7 @@ import aery.httpserver;
 import std.stdio;
 import std.digest.sha;
 import std.conv;
+import std.array;
 
 class Authenticator {
 
@@ -14,7 +17,6 @@ private:
     DBConnector db;
     string auth_table;
     string auth_user_field;
-    string auth_pass_field;
 
 public:
     
@@ -23,11 +25,10 @@ public:
         this.db = handle;
         this.auth_table = settings.auth_table;
         this.auth_user_field = settings.auth_user_field;
-        this.auth_pass_field = settings.auth_pass_field;
     }
 
     // Explicitly define SQL settings
-    this(DBConnector handle, string auth_table, string auth_user_field, string auth_pass_field) {
+    this(DBConnector handle, string auth_table, string auth_user_field) {
         this.db = handle;
         this.auth_table = auth_table;
         this.auth_user_field = auth_user_field;
@@ -54,12 +55,16 @@ public:
     // Authenticate a user (backend)
     bool verify_backend(string username, string password) {
 
-        string query = "SELECT (" ~ this.auth_pass_field ~ ") FROM " ~ this.auth_table 
+        string query = "SELECT (password) FROM " ~ this.auth_table 
             ~ " WHERE " ~ this.auth_user_field ~ "=\"" ~ username ~ "\";";
 
-        DBResults results = db.fetch(query);
-        
-        if (toHexString(sha256Of(password)) == to!string(results[0][this.auth_pass_field]))
+        auto user = db.fetch!(User)(query);
+
+        // The user was not found
+        if (user.empty)
+            return false;
+
+        if (toHexString(sha256Of(password)) == to!string(user[0].password))
             return true;
         else
             return false;

@@ -291,10 +291,6 @@ private:
 public:   
     this() { }
     
-    // Catch-all (requires casting)
-    void add(string identifier, ParamElement value) { this.params[identifier] = value; }
-    void add(string identifier, DBResults value) { this.params[identifier] = value; }
-
     void add(string identifier, string value) { this.params[identifier] = value; }
     void add(string identifier, string[] value) { this.params[identifier] = value; }
     void add(string identifier, int value) { this.params[identifier] = value; }
@@ -303,7 +299,31 @@ public:
     void add(string identifier, float[] value) { this.params[identifier] = value; }
     void add(string identifier, bool value) { this.params[identifier] = value; }
     void add(string identifier, bool[] value) { this.params[identifier] = value; }
-   
+ 
+    // Add a model struct/array of model struct (converts to associative array)
+    void addModels(T) (string identifier, T t) {
+        Variant[ulong] tmp_arr;
+        auto fields = __traits(allMembers, typeof(t[0]));
+        ulong items = 0;
+
+        // Loop through all items in struct array
+        for (int i=0; i<t.length; i++) {
+            Variant[string] tmp_item;
+
+            // Add each item of the model as an array member
+            auto values = t[items].tupleof;
+            foreach (index, value; values) {
+                tmp_item[fields[index]] = value;
+            }
+
+            tmp_arr[items] = tmp_item;
+            items++;
+        }
+
+        this.params[identifier] = tmp_arr;
+    }
+
+
 
     auto send() {
         return this.params;

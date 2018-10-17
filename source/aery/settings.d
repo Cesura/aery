@@ -13,6 +13,5 @@ struct Settings {
     // Authentication settings
     string auth_table = "users";
     string auth_user_field = "username";
-    string auth_pass_field = "password";
     string auth_session_dir = "/tmp/.aery_session";
 };
