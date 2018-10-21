@@ -44,8 +44,13 @@ private:
 
     }
 
+    // Check if the two given models are equivalent
     bool modelsEqual(Model m1, Model m2) {
 
+        foreach (string key, string value; m1) {
+            if (key !in m2 || m1[key] != m2[key])
+                return false;
+        }
         return true;
     }
 
@@ -228,7 +233,7 @@ private:
             // Model exists in the DB, update components if necessary
             else {
 
-                // TODO
+                
 
             }
 
@@ -277,7 +282,7 @@ public:
             writeln(query);
 
         try {
-            return fetchBackend!(User)(db.execute(query));
+            return fetchBackend!(T)(db.execute(query));
         }
         catch (Exception e) {
 
@@ -292,7 +297,7 @@ public:
     // Overloaded fetch() for prepared statements
     T[ulong] fetch(T) (Statement stmt) {
         try {
-            return fetchBackend!(User)(stmt.execute());
+            return fetchBackend!(T)(stmt.execute());
         }
         catch (Exception e) {
 
