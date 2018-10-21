@@ -66,7 +66,7 @@ static void handleConnection() {
 	// Split up HTTP headers into an array
 	string request = cast(string)buffer;
 	string[] headers = request.split("\r\n");
-	string msg_body = findSplitBefore(findSplitAfter(request, "\r\n\r\n")[1], "\0")[0];
+	string msg_body = request.findSplitAfter("\r\n\r\n")[1].findSplitBefore("\0")[0];
 
 	if (settings.debug_mode)
 		writeln(headers[0]);
@@ -117,7 +117,7 @@ static void handleConnection() {
 			
 			// Assume it was a static asset request
 			if (callback == null) {
-				request_path = chompPrefix(request_path, "/");
+				request_path = request_path.chompPrefix("/");
 
 				if (exists(request_path) && isFile(request_path)) {
 					string[] ext = request_path.split(".");

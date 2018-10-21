@@ -48,7 +48,7 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
     try {
         // Extract all of the values
         string value;
-        foreach (m; matchAll(contents, regex(r"\{\{.+?\}\}","m"))) {
+        foreach (m; contents.matchAll(regex(r"\{\{.+?\}\}","m"))) {
             value = strip(strip(strip(m.hit, "{"), "}"));
 
             if (value in params)
@@ -57,10 +57,10 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
         }
 
         // Extract all logic operations
-        foreach (m; matchAll(contents, regex(r"\{%.+?%\}","m"))) {
-            value = strip(strip(strip(strip(strip(m.hit, "{"), "}"), "%")));
+        foreach (m; contents.matchAll(regex(r"\{%.+?%\}","m"))) {
+            value = m.hit.strip("{").strip("%").strip();
             
-            string[] elements = split(value, " ");
+            string[] elements = value.split(" ");
             switch (elements[0]) {
 
                 // CSS file
@@ -69,8 +69,8 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                     if (!exists(path))
                         path = elements[1];
                     
-                    contents = replace(contents, 
-                            m.hit, "<link rel=\"stylesheet\" type=\"text/css\" href=\"" 
+                    contents = contents.replace(m.hit,
+                        "<link rel=\"stylesheet\" type=\"text/css\" href=\"" 
                             ~ path ~ "\" />");
                     break;
 
@@ -80,8 +80,7 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                     if (!exists(path))
                         path = elements[1];
                     
-                    contents = replace(contents,
-                        m.hit, "<script src=\"" ~ path ~ "\"></script>");
+                    contents = contents.replace(m.hit, "<script src=\"" ~ path ~ "\"></script>");
                     break;
 
                 // If statement
@@ -96,7 +95,7 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                         
                         if (elements[1][0] == '!') {
                             invert = true;
-                            elements[1] = strip(elements[1], "!");
+                            elements[1] = elements[1].strip("!");
                         }
                             
 
@@ -118,8 +117,8 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                         Variant first, second;
 
                         // Convert the expression to the left of the operator 
-                        if ((startsWith(elements[1], "\"") && endsWith(elements[1], "\""))
-                                || (startsWith(elements[1], "\'") && endsWith(elements[1], "\'"))) {
+                        if ((elements[1].startsWith("\"") && elements[1].endsWith("\""))
+                                || (elements[1].startsWith("\'") && elements[1].endsWith("\'"))) {
 
                             first = elements[1][1..(elements[1].length-1)];
 
@@ -136,8 +135,8 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
 
 
                         // Convert the expression to the right of the operator
-                        if ((startsWith(elements[3], "\"") && endsWith(elements[3], "\""))
-                                || (startsWith(elements[3], "\'") && endsWith(elements[3], "\'"))) {
+                        if ((elements[3].startsWith("\"") && elements[3].endsWith("\""))
+                                || (elements[3].startsWith( "\'") && elements[3].endsWith("\'"))) {
 
                             second = elements[3][1..(elements[3].length-1)];
 
@@ -183,26 +182,25 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                         }
                     }
 
-                    if (indexOf(contents, "{% else %}") < indexOf(contents, "{% endif %}"))
+                    if (contents.indexOf("{% else %}") < contents.indexOf("{% endif %}"))
                         is_else = true;
                     
                     
-                    auto before_if = findSplitBefore(contents, m.hit);
+                    auto before_if = contents.findSplitBefore(m.hit);
 
                     // Result was not true
                     if (!result) {
 
                         // There's an else statement; print its contents
                         if (is_else) {
-                            auto after_else = findSplitAfter(contents, "{% else %}");
-                            contents = replaceFirst(before_if[0] ~ after_else[1], "{% endif %}", "");
+                            auto after_else = contents.findSplitAfter("{% else %}");
+                            contents = (before_if[0] ~ after_else[1]).replaceFirst("{% endif %}", "");
                         }
 
                         // End normally
                         else {
-                            auto after_endif = findSplitAfter(contents, "{% endif %}");
+                            auto after_endif = contents.findSplitAfter("{% endif %}");
                             contents = before_if[0] ~ after_endif[1];
-                            
                         }
                         
                     }
@@ -210,12 +208,12 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
 
                         // There's an else statement; ignore it
                         if (is_else) {
-                            auto before_else = findSplitBefore(contents, "{% else %}");
-                            auto after_endif = findSplitAfter(contents, "{% endif %}");
-                            contents = replaceFirst(replaceFirst(before_else[0], m.hit, "") ~ after_endif[1], "{% endif %}", "");
+                            auto before_else = contents.findSplitBefore("{% else %}");
+                            auto after_endif = contents.findSplitAfter("{% endif %}");
+                            contents = (before_else[0].replaceFirst(m.hit, "") ~ after_endif[1]).replaceFirst("{% endif %}", "");
                         }
                         else
-                            contents = replaceFirst(replaceFirst(contents, m.hit, ""), "{% endif %}", "");
+                            contents = contents.replaceFirst(m.hit, "").replaceFirst("{% endif %}", "");
                     }
 
                     break;
@@ -226,10 +224,10 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                     else {
                         if (elements[1] in params) {
 
-                            string prefix = findSplitBefore(elements[3], ".")[0];
+                            string prefix = elements[3].findSplitBefore(".")[0];
 
-                            auto after_foreach = findSplitAfter(contents, "{% foreach " ~ elements[1] ~ " as " ~ elements[3] ~ " %}");
-                            auto before_endforeach = findSplitBefore(after_foreach[1], "{% endforeach %}");
+                            auto after_foreach = contents.findSplitAfter("{% foreach " ~ elements[1] ~ " as " ~ elements[3] ~ " %}");
+                            auto before_endforeach = after_foreach[1].findSplitBefore("{% endforeach %}");
 
                             if (after_foreach[0] == "")
                                 break;
@@ -244,13 +242,13 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                                 result = result ~ stmt_body;
 
                                 // Loop through all identifiers that specify values of an associative array
-                                foreach (n; matchAll(stmt_body, regex(r"(\{\{ )([^\s]+)[.]([^\s]+)( \}\})","m"))) {
+                                foreach (n; stmt_body.matchAll(regex(r"(\{\{ )([^\s]+)[.]([^\s]+)( \}\})","m"))) {
 
-                                    auto key = findSplitBefore(findSplitAfter(n.hit, ".")[1], " ")[0];
+                                    auto key = m.hit.findSplitAfter(".")[1].findSplitBefore(" ")[0];
 
                                     // Ensure it's the right identifier
                                     if (n.hit.canFind(prefix)) {
-                                        result = replace(result, n.hit, to!string(x[key]));
+                                        result = result.replace(n.hit, to!string(x[key]));
                                         skipnext = true;
                                     }
                                     else
@@ -260,11 +258,11 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
 
                                 // Do a regular replacement (assuming it's a single value)
                                 if (!skipnext)
-                                    result = replace(result, "{{ " ~ elements[3] ~ " }}", to!string(x));
+                                    result = result.replace("{{ " ~ elements[3] ~ " }}", to!string(x));
                             }
 
                             // Do the replacement, and strip the logical operators
-                            contents = replaceFirst(replaceFirst(replaceFirst(contents, m.hit, ""), "{% endforeach %}", ""), stmt_body, result);
+                            contents = contents.replaceFirst(m.hit, "").replaceFirst("{% endforeach %}", "").replaceFirst(stmt_body, result);
                         }
                     }
                     break;

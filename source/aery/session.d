@@ -28,7 +28,7 @@ public:
 		string path = settings.auth_session_dir ~ "/" ~ session_id;
 
 		try {
-			if (!(session_id is null) && exists(path)) {
+			if (session_id !is null && exists(path)) {
 				string from_file = readText(path);
 				auto lines = from_file.split("\n");
 
