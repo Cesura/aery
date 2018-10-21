@@ -18,26 +18,26 @@ alias ParamElement = Variant;
 
 // Render a static template given a CachedTemplate object
 string renderStatic(CachedTemplate tmp) {
-    return tmp.get_contents();
+    return tmp.getContents();
 }
 
 // Render a static template given a template path
 string renderStatic(string template_path) {
     CachedTemplate tmp = new CachedTemplate(template_path);
-    string output = tmp.get_contents();
+    string output = tmp.getContents();
     destroy(tmp);
     return output;
 }
 
 // Render a dymamic template given a CachedTemplate object
 string renderTemplate(CachedTemplate tmp, Variant[string] params) {
-    return renderTemplateBackend(tmp.get_path(), tmp.get_contents(), params);
+    return renderTemplateBackend(tmp.getPath(), tmp.getContents(), params);
 }
 
 // Render a dymamic template given a template path
 string renderTemplate(string template_path, Variant[string] params) {
     CachedTemplate tmp = new CachedTemplate(template_path);
-    string output = renderTemplateBackend(template_path, tmp.get_contents(), params);
+    string output = renderTemplateBackend(template_path, tmp.getContents(), params);
     destroy(tmp);
     return output;
 }
@@ -350,11 +350,11 @@ public:
         
     }
 
-    string get_path() {
+    string getPath() {
         return this.template_path;
     }
 
-    string get_contents() {
+    string getContents() {
         return this.contents;
     }
 }
@@ -369,7 +369,7 @@ public:
     this() {}
 
     void add(CachedTemplate tmp) {
-        this.templates[tmp.get_path()] = tmp;
+        this.templates[tmp.getPath()] = tmp;
     }
 
     CachedTemplate get(string identifier) {

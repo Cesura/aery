@@ -11,6 +11,8 @@ import std.digest.sha;
 import std.conv;
 import std.array;
 
+import d2sqlite3;
+
 class Authenticator {
 
 private:
@@ -56,9 +58,10 @@ public:
     bool verify_backend(string username, string password) {
 
         string query = "SELECT (password) FROM " ~ this.auth_table 
-            ~ " WHERE " ~ this.auth_user_field ~ "=\"" ~ username ~ "\";";
-
-        auto user = db.fetch!(User)(query);
+            ~ " WHERE " ~ this.auth_user_field ~ "=:username;";
+    
+        auto prepared = db.prepare(query, [":username":username]);
+        auto user = db.fetch!(User)(prepared);
 
         // The user was not found
         if (user.empty)
@@ -70,5 +73,6 @@ public:
             return false;
         
     }
+
 
 }

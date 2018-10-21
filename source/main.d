@@ -3,8 +3,6 @@ import std.conv;
 import std.traits;
 import std.variant;
 
-import std.typecons;
-
 import aery.all;
 
 import models;
@@ -25,8 +23,9 @@ void main() {
     pool.add(new CachedTemplate("templates/template.html"));
 
     db = new DBConnector("./database.db");
+    auto users = db.fetch!(User)("SELECT * FROM user;");
 
-    listen(8081, router);
+    //listen(8081, router);
     db.close();
 }
 
