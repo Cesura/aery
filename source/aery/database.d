@@ -16,8 +16,9 @@ import std.string;
 import std.algorithm;
 import std.regex;
 import core.stdc.stdlib;
+import core.thread;
 
-import d2sqlite3;
+import mysql;
 
 // Models declarations
 alias Model = string[string];
@@ -27,21 +28,27 @@ ModelsArray _aery_models;
 class DBConnector {
     
 private:
-    Database db;
+    string host;
+    int port;
+    string user;
+    string password;
+    string dbname;
+    Connection handle;
 
     // Check whether a table exists in the database
     bool tableExists(string name) {
-        string query = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='" ~ name ~ "';";
-        int exists = db.execute(query).oneValue!int;
-        if (exists)
-            return true;
+        MetaData md = MetaData(this.handle);
+        auto tables = md.tables();
+
+        if (tables.canFind(name))
+			return true;
         
         return false;
     }
 
     // Add a new table with the given query
     void addTable(string query) {
-
+        
     }
 
     // Check if the two given models are equivalent
@@ -56,61 +63,34 @@ private:
 
     // Convert a DB table to a Model
     Model tableToModel(string name) {
-
         if (!tableExists(name))
             return null;
 
         // Get the structure of the table in question
-        string query = "SELECT * FROM sqlite_master WHERE type='table' AND name='" ~ name ~ "';";
-        Row result = db.execute(query).front();
-        
+        ResultRange results = this.handle.query("DESCRIBE " ~ name ~ ";");
+
         Model table_model = null;
         table_model["_aery_model_name"] = name;
 
         string fieldtype = "";
         string fieldname = "";
-        string other = "";
         int ai_count = 0;
 
         // Loop through each field
-        foreach (string item; to!string(result[4]).findSplitAfter("(")[1].chomp(")").split(",")) {
-            item = item.strip();
-            fieldname = item.findSplitBefore(" ")[0];
-            other = item[fieldname.length+1 .. $];
-            fieldtype = other.findSplitBefore(" ")[0].findSplitBefore("(")[0];
-
-            // Convert the SQL types to D types
-            switch (fieldtype) {
-                case "VARCHAR":
-                case "TEXT":
-                    fieldtype = "string";
-                    break;
-                case "INTEGER":
-                    fieldtype = "int";
-                    break;
-                case "FLOAT":
-                    fieldtype = "float";
-                    break;
-                case "DOUBLE":
-                    fieldtype = "double";
-                    break;
-                case "CHARACTER":
-                    fieldtype = "char";
-                    break;
-                default:
-                    break;
-            }
+        foreach (Row row; results) {
+            fieldname = to!string(row[0]);
+            fieldtype = convertToDType(to!string(row[1]).findSplitBefore(" ")[0].findSplitBefore("(")[0]);           
 
             // Add the field to the Model array
             table_model[fieldname] = fieldtype;
 
             // Check if this field is a primary key
-            if (other.indexOf("PRIMARY KEY") > -1) {
+            if (row[3] == "PRI") {
                 table_model["_aery_primary_key"] = fieldname;
             }
 
-            // Check if this field has an AUTOINCREMENT attribute
-            if (other.indexOf("AUTOINCREMENT") > -1) {
+            // Check if this field has an auto_increment attribute
+            if (row[5] == "auto_increment") {
                 if (ai_count == 0)
                     table_model["_aery_auto_increment"] = fieldname;
                 else
@@ -124,27 +104,42 @@ private:
         return table_model;
     }
 
+    string convertToDType(string sql_type) {
+        switch (sql_type) {
+                case "varchar":
+                case "text":
+                    return "string";
+                default:
+                    return sql_type;
+            }
+    }
+
+    string convertToSQLType(string d_type) {
+        switch (d_type) {
+            case "string":
+                return "varchar(" ~ to!string(settings.default_varchar_length) ~ ")";
+            default:
+                return d_type;
+        }
+    }
+
     // Verify the database accurately reflects the user-defined models
     void syncModels() {
 
         // Mixin for compile-time generated models
         mixin(importModels());
-        
-        // Get all of the tables in the database as models
-        string query = "SELECT * FROM sqlite_master WHERE type='table';";
-        ResultRange results = db.execute(query);
-        Model[string] table_models;
-        foreach (Row row; results) {
-            string name = to!string(row[1]);
 
-            // Ignore the built-in sqlite table
-            if (name != "sqlite_sequence") {
-                table_models[name] = tableToModel(name);
-            }
+        Model[string] table_models;
+        Model[string] local_models;
+
+        // Get all of the tables in the database as models
+        MetaData md = MetaData(this.handle);
+        auto tables = md.tables();
+        foreach (table; tables) {
+            table_models[table] = tableToModel(table);
         }
 
         // Convert local models to a more easily searchable array
-        Model[string] local_models;
         for (int i=0; i<_aery_models.length; i++) {
             local_models[_aery_models[i]["_aery_model_name"]] = _aery_models[i];
         }
@@ -189,21 +184,10 @@ private:
                         // Convert the D type to a SQL type
                         switch (local_models[model_name][field]) {
                             case "string":
-                                query ~= "VARCHAR(" ~ to!string(settings.default_varchar_length) ~ ")";
-                                break;
-                            case "int":
-                                query ~= "INTEGER";
-                                break;
-                            case "float":
-                                query ~= "FLOAT";
-                                break;
-                            case "double":
-                                query ~= "DOUBLE";
-                                break;
-                            case "char":
-                                query ~= "CHARACTER";
+                                query ~= "varchar(" ~ to!string(settings.default_varchar_length) ~ ")";
                                 break;
                             default:
+                                query ~= local_models[model_name][field];
                                 break;
                         }
 
@@ -211,7 +195,7 @@ private:
                             query ~= " PRIMARY KEY";
 
                         if (ai.canFind(field))
-                            query ~= " AUTOINCREMENT";
+                            query ~= " AUTO_INCREMENT";
                         
                         query ~= ", ";
                     }
@@ -221,20 +205,65 @@ private:
 
                 // Execute query
                 try {
-                    db.execute(query);
+                    this.handle.exec(query);
                 }
                 catch (Exception e) {
-                    writeln("Error syncing models");
+                    writeln("Error: could not sync models");
                     exit(1);
                 }
-
             }
 
             // Model exists in the DB, update components if necessary
             else {
 
-                
+                foreach (string key, string value; model) {
 
+                    // Field does not exist in the DB
+                    if (key !in table_models[model_name]) {
+                        
+                        if (key.length >= 6 && key.startsWith("_aery_"))
+                            continue;
+
+                        // Add the new column to the DB table
+                        string query = "ALTER TABLE " ~ model_name ~ " ADD COLUMN "
+                                        ~ key ~ " " ~ convertToSQLType(value) ~ ";";
+                        
+                        // Execute query
+                        try {
+                            this.handle.exec(query);
+                        }
+                        catch (Exception e) {
+                            writeln("Error: could not sync models");
+                            exit(1);
+                        }
+                   
+                    }
+
+                    // DB field does not match the local model field
+                    else if (local_models[model_name][key] != table_models[model_name][key]) {
+
+
+                    }
+                }
+            }
+
+            // Check if there are any fields that exist in the table but not in the local model
+            foreach (string column, string type; table_models[model_name]) {
+                
+                if (column !in local_models[model_name]) {
+                        
+                        // Drop the column from the DB table
+                        string query = "ALTER TABLE " ~ model_name ~ " DROP COLUMN " ~ column ~ ";";
+                        
+                        // Execute query
+                        try {
+                            this.handle.exec(query);
+                        }
+                        catch (Exception e) {
+                            writeln("Error: could not sync models");
+                            exit(1);
+                        }
+                }
             }
 
             // Loop through table models, deleting them if the local model no longer exists
@@ -242,7 +271,7 @@ private:
                 foreach (string model_name, Model model; table_models) {
                     if (model_name !in local_models) {
                         string query = "DROP TABLE " ~ model_name ~ ";";
-                        db.execute(query);
+                        this.handle.exec(query);
                     }
                 }
             }
@@ -251,61 +280,40 @@ private:
 
 
 public:
-    this(string dbpath) {
-        if (!exists(dbpath)) {
-            writeln("Error: specified database does not exist.");
-            exit(1);
-        }
 
-        this.db = Database(dbpath);
+    // Use the default values from settings.d
+    this() {
+        this(settings.mysql_host, settings.mysql_port,
+            settings.mysql_user, settings.mysql_pass, settings.mysql_dbname);
+    }
+
+    // User passed parameters is value
+    this(string host, int port, string user, string password, string dbname) {
+        this.host = host;
+        this.port = port;
+        this.user = user;
+        this.password = password;
+        this.dbname = dbname;
+
+        this.handle = new Connection("host=" ~ this.host
+                                    ~ ";port=" ~ to!string(this.port)
+                                    ~ ";user=" ~ this.user
+                                    ~ ";pwd=" ~ this.password
+                                    ~ ";db=" ~ this.dbname);
+
         syncModels();
     }
 
-    // Prepare a SQL statment with the given array of key/value pairs
-    Statement prepare(string query, string[string] items) {
-        Statement stmt = this.db.prepare(query);
-        foreach (string identifier, value; items) {
-            stmt.bind(identifier, value);
-            query = query.replace(identifier, value);
-        }
-
-        if (settings.debug_mode)
-            writeln(query);
-
-        return stmt;
-    }
-
-    
+  
     // Overloaded fetch() for string queries
     T[ulong] fetch(T) (string query) {
-        if (settings.debug_mode)
-            writeln(query);
-
-        try {
-            return fetchBackend!(T)(db.execute(query));
-        }
-        catch (Exception e) {
-
-            if (settings.debug_mode)
-                writeln("Error: SQL error, returning null object");
-
-            return null;
-        }
+        return this.fetchBackend!(T)(this.handle.query(query));
     }
 
 
     // Overloaded fetch() for prepared statements
-    T[ulong] fetch(T) (Statement stmt) {
-        try {
-            return fetchBackend!(T)(stmt.execute());
-        }
-        catch (Exception e) {
-
-            if (settings.debug_mode)
-                writeln("Error: SQL error, returning null object");
-
-            return null;
-        }
+    T[ulong] fetch(T) (Prepared stmt) {
+        return this.fetchBackend!(T)(this.handle.query(stmt));
     }
 
     // Fetch an array of structs for the given query, using the models
@@ -323,51 +331,52 @@ public:
         }
 
         // Loop through rows
-        bool found = false;
         ulong return_index = 0;
         foreach (Row row; results) {
             T return_object;
 
             // Loop through columns
             for (int j=0; j<row.length; j++) {
-                
                 int p = 0;
                 foreach (field_type; RepresentationTypeTuple!T) {
-                    if (found)
-                        break;
 
                     // Check if the column name matches a field name, 
                     // and assign the proper type if it does
-                    if (row.columnName(j) == field_names[p]) {
-                        return_object.setValue(row.columnName(j), row[j].as!(field_type));
-                        found = true;
+                    if (results.colNames[j] == field_names[p]) {
+
+                        // If it's a string and also null, choose an empty string instead
+                        if (is(field_type == string) && row[j] == null)
+                            return_object.setValue(results.colNames[j], "");
+                        else
+                            return_object.setValue(results.colNames[j], row[j].get!(field_type));
+                        
+                        break;
                     }
 
                     p++;
                 }
-
-                found = false;                
             }
-            
-            return_array[return_index] = return_object;
-            return_index++;
+
+            return_array[return_index++] = return_object;
         }
 
         return return_array;
     }
 
+    // Return a prepared statement
+    Prepared prepare(string query) {
+        return this.handle.prepare(query);
+    }
+
     // Return a pointer to this DB instance
-    Database getHandle() {
-        return this.db;
+    Connection getHandle() {
+        return this.handle;
     }
 
     // Close the connection (the garbage collector will most likely do this)
     void close() {
-        this.db.close();
-    }
-
-    
-
+        this.handle.close();
+    }  
 }
 
 // Set a template value V in a template struct T

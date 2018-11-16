@@ -22,7 +22,7 @@ void main() {
     pool = new TemplatePool();
     pool.add(new CachedTemplate("templates/template.html"));
 
-    db = new DBConnector("./database.db");
+    db = new DBConnector();
 
     listen(8081, router);
     db.close();
@@ -33,7 +33,7 @@ void homePage(HTTPRequest req, HTTPResponse res) {
     TemplateParams params = new TemplateParams();
 
     if (req.logged_in()) {
-        auto users = db.fetch!(User)("SELECT * FROM users;");
+        auto users = db.fetch!(User)("SELECT * FROM User;");
         params.addModels("users", users);
 
         params.add("logged_in", true);
@@ -46,7 +46,6 @@ void homePage(HTTPRequest req, HTTPResponse res) {
         params.add("title", "Login zone");
     }
     
-
     res.send(renderTemplate(pool.get("templates/template.html"), params.send()));
 }
 

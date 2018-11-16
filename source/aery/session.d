@@ -83,8 +83,7 @@ public:
 				potential_file = toHexString(md5.digest(to!string(uniform(0, 500000, rng))));
 			}
 
-
-			this.add("_aery_expires", to!string((Clock.currTime()+3600.seconds).toUnixTime));
+			this.add("_aery_expires", to!string((Clock.currTime() + settings.session_length.seconds()).toUnixTime));
 
 			// Write the session vars to the new session file
 			foreach (string key, string value; this.session_vars) {

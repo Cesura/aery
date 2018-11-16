@@ -58,9 +58,10 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
 
         // Extract all logic operations
         foreach (m; contents.matchAll(regex(r"\{%.+?%\}","m"))) {
-            value = m.hit.strip("{").strip("%").strip();
+            value = m.hit.strip("{").strip("}").strip("%").strip();
             
             string[] elements = value.split(" ");
+
             switch (elements[0]) {
 
                 // CSS file
@@ -92,7 +93,7 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
 
                     // Boolean
                     if (elements.length == 2) {
-                        
+
                         if (elements[1][0] == '!') {
                             invert = true;
                             elements[1] = elements[1].strip("!");
@@ -109,8 +110,9 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                                 result ^= invert;
                             
                         }
+
                     }
-                    
+  
                     // Comparison
                     else if (elements.length == 4) {
                         
@@ -181,6 +183,7 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                                 throw new Exception("Parse error");
                         }
                     }
+                    
 
                     if (contents.indexOf("{% else %}") < contents.indexOf("{% endif %}"))
                         is_else = true;
@@ -244,7 +247,7 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                                 // Loop through all identifiers that specify values of an associative array
                                 foreach (n; stmt_body.matchAll(regex(r"(\{\{ )([^\s]+)[.]([^\s]+)( \}\})","m"))) {
 
-                                    auto key = m.hit.findSplitAfter(".")[1].findSplitBefore(" ")[0];
+                                    auto key = n.hit.findSplitAfter(".")[1].findSplitBefore(" ")[0];
 
                                     // Ensure it's the right identifier
                                     if (n.hit.canFind(prefix)) {
@@ -259,11 +262,14 @@ string renderTemplateBackend(string template_path, string contents, Variant[stri
                                 // Do a regular replacement (assuming it's a single value)
                                 if (!skipnext)
                                     result = result.replace("{{ " ~ elements[3] ~ " }}", to!string(x));
+
+
                             }
 
                             // Do the replacement, and strip the logical operators
                             contents = contents.replaceFirst(m.hit, "").replaceFirst("{% endforeach %}", "").replaceFirst(stmt_body, result);
                         }
+
                     }
                     break;
 

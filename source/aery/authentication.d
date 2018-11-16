@@ -11,7 +11,7 @@ import std.digest.sha;
 import std.conv;
 import std.array;
 
-import d2sqlite3;
+import mysql;
 
 class Authenticator {
 
@@ -23,15 +23,15 @@ private:
 public:
     
     // Use the predefined settings
-    this(DBConnector handle) {
-        this.db = handle;
+    this(DBConnector db) {
+        this.db = db;
         this.auth_table = settings.auth_table;
         this.auth_user_field = settings.auth_user_field;
     }
 
     // Explicitly define SQL settings
-    this(DBConnector handle, string auth_table, string auth_user_field) {
-        this.db = handle;
+    this(DBConnector db, string auth_table, string auth_user_field) {
+        this.db = db;
         this.auth_table = auth_table;
         this.auth_user_field = auth_user_field;
     }
@@ -53,15 +53,22 @@ public:
         return false;
     }
 
-   
     // Authenticate a user (backend)
     bool verify_backend(string username, string password) {
 
-        string query = "SELECT (password) FROM " ~ this.auth_table 
-            ~ " WHERE " ~ this.auth_user_field ~ "=:username;";
+        // Prepare the query
+        string query = "SELECT password FROM " ~ this.auth_table 
+            ~ " WHERE " ~ this.auth_user_field ~ "=?;";
     
-        auto prepared = db.prepare(query, [":username":username]);
+        Prepared prepared = this.db.prepare(query);
+        prepared.setArgs(username);
         auto user = db.fetch!(User)(prepared);
+
+        // There was an finding the right database table/field
+        if (user == null) {
+            writeln("Error: could not find authentication table/field. Check your settings.d file.");
+            return false;
+        }
 
         // The user was not found
         if (user.empty)
@@ -71,8 +78,6 @@ public:
             return true;
         else
             return false;
-        
     }
-
 
 }

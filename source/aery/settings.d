@@ -12,10 +12,20 @@ struct Settings {
     string css_path = "assets/css";
     string js_path = "assets/js";
 
+    // Database connection settings
+    string mysql_host = "localhost";
+    int mysql_port = 3306;
+    string mysql_user = "root";
+    string mysql_pass = "password";
+    string mysql_dbname = "testdb";
+
     // Authentication settings
-    string auth_table = "users";
+    string auth_table = "User";
     string auth_user_field = "username";
     string auth_session_dir = "/tmp/.aery_session";
+
+    // Session settings
+    int session_length = 3600;              // in seconds
 
     // Database settings
     int default_varchar_length = 64;

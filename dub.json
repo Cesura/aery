@@ -4,8 +4,9 @@
 		"Brad Fanella"
 	],
 	"dependencies": {
-        "d2sqlite3": {"path": "./source/aery/extern/d2sqlite3/"}
-    },
+        "mysql-native": {"path": "./source/aery/extern/mysql-native/"}
+	},
+	"dflags": ["-J ./source/"],
     "targetType": "executable",
 	"description": "A fast, lightweight web framework written in D",
 	"copyright": "Copyright © 2018, Brad Fanella",
